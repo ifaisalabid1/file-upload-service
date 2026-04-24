@@ -17,6 +17,7 @@ import (
 	"github.com/ifaisalabid1/file-upload-service/internal/logger"
 	"github.com/ifaisalabid1/file-upload-service/internal/middleware"
 	"github.com/ifaisalabid1/file-upload-service/internal/repository"
+	"golang.org/x/time/rate"
 )
 
 func main() {
@@ -32,18 +33,21 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	pool, err := repository.NewPool(ctx, cfg.DatabaseURL, logger)
+	db, err := repository.NewPool(ctx, cfg.DatabaseURL, logger)
 	if err != nil {
 		logger.Error("failed to connect to database", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
-	defer pool.Close()
+	defer db.Close()
 
 	logger.Info("connected to postgres")
 
 	healthHandler := &handler.HealthHandler{
-		DB: pool,
+		DB: db,
 	}
+
+	fileRepo := repository.NewPostgresFileRepository(db)
+	uploadHandler := handler.NewUploadHandler(fileRepo, logger)
 
 	r := chi.NewRouter()
 	r.Use(chiMid.RequestID)
@@ -52,6 +56,13 @@ func main() {
 	r.Use(chiMid.Recoverer)
 
 	r.Get("/health", healthHandler.HealthCheckHandler)
+
+	r.Route("/api", func(r chi.Router) {
+		limiter := middleware.NewIPRateLimiter(rate.Limit(cfg.RateLimit), cfg.RateBurst)
+		r.Use(limiter)
+
+		r.Post("/files", uploadHandler.CreateFile)
+	})
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),

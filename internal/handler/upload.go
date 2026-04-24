@@ -69,9 +69,11 @@ func (h *uploadHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	data, err := json.Marshal(file)
 	if err != nil {
 		h.logger.Error("json marshal error", slog.String("error", err.Error()))
-		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInsufficientStorage)
+		http.Error(w, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
 	}
+
+	data = append(data, '\n')
 
 	w.Write(data)
 }
