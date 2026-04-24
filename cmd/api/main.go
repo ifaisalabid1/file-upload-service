@@ -29,8 +29,6 @@ func main() {
 	logger := logger.New(cfg.Env, cfg.LogLevel)
 	slog.SetDefault(logger)
 
-	logger.Info("starting service...", slog.Int("port", cfg.ServerPort), slog.String("log_level", cfg.LogLevel))
-
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -64,6 +62,7 @@ func main() {
 	}
 
 	go func() {
+		logger.Info("starting server...", slog.String("host", fmt.Sprintf("http://localhost%s", srv.Addr)))
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 			logger.Error("server error", slog.String("error", err.Error()))
 			os.Exit(1)
